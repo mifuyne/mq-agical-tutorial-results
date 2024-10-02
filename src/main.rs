@@ -2,7 +2,7 @@ use macroquad::prelude::*;
 
 fn window_conf() -> Conf {
     Conf {
-        window_title: "Mqagical Macroquad Tutorial".to_owned(),
+        window_title: "Agical Macroquad Tutorial".to_owned(),
         window_resizable: false,
         ..Default::default()
     }

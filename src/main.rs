@@ -19,7 +19,8 @@ struct Shape {
     speed: f32,
     x: f32,
     y: f32,
-    color: Color
+    color: Color,
+    collided: bool,
 }
 
 impl Shape {
@@ -44,12 +45,14 @@ async fn main() {
 
     // Setting shapes
     let mut squares = vec![];
+    let mut bullets: Vec<Shape> = vec![];
     let mut circle = Shape {
         size: 32.0,
         speed: SPEED,
         x: screen_width() / 2.0,
         y: screen_height() / 2.0,
         color: Color::from_hex(0xb1de78),
+        collided: false,
     };
 
     let mut gameover = false;
@@ -66,6 +69,8 @@ async fn main() {
         Color::from_hex(0xde4b43),
         Color::from_hex(0xd83834),
     ];
+
+    let mut last_shot: f64 = 0.0;
 
     loop {
         clear_background(Color::from_hex(0x643c80));
@@ -98,6 +103,19 @@ async fn main() {
             circle.x = clamp(circle.x, 0.0 + circle.size, screen_width() - circle.size);
             circle.y = clamp(circle.y, 0.0 + circle.size, screen_height() - circle.size);
 
+            // Did player shoot? Has it been 0.25 seconds since the last shot?
+            if is_key_down(KeyCode::Space) && (get_time() - last_shot) > 0.25 {
+                bullets.push(Shape {
+                    x: circle.x,
+                    y: circle.y,
+                    speed: circle.speed * 2.0,
+                    size: 5.0,
+                    color: WHITE,
+                    collided: false,
+                });
+                last_shot = get_time();
+            }
+
             // --- Squares ---
             // Create a new square
             if rand::gen_range(0, 99) >= 95 {
@@ -111,20 +129,51 @@ async fn main() {
                     color: match enemy_clr.choose() {
                         Some(choice) => *choice,
                         None => Color::from_hex(0x000000),
-                    }
+                    },
+                    collided: false,
                 })
             }
 
+            // Move the Squares
             for square in &mut squares {
                 square.y += square.speed * delta_time;
             }
 
+            // Move the bullets
+            for bullet in &mut bullets {
+                bullet.y -= bullet.speed * delta_time;
+            }
+            
+            // Check for collision (Lose state)
             if squares.iter().any(|square| circle.collides_with(square)) {
                 gameover = true;
             }
 
-            // Keep squares still on-screen
+            // Check for bullet-square collisions
+            for square in squares.iter_mut() {
+                for bullet in bullets.iter_mut() {
+                    if bullet.collides_with(square) {
+                        bullet.collided = true;
+                        square.collided = true;
+                    }
+                }
+            }
+
+            // Keep squares that's on-screen
             squares.retain(|square| square.y < screen_height() + square.size);
+
+            // Keep bullets that's on-screen
+            bullets.retain(|bullet| bullet.y > 0.0 - bullet.size / 2.0);
+
+            // Remove collided bullets & squares
+            squares.retain(|square| !square.collided);
+            bullets.retain(|bullet| !bullet.collided);
+
+        }
+
+        // Draw bullets
+        for bullet in &bullets {
+            draw_circle(bullet.x, bullet.y, bullet.size / 2.0, RED);
         }
 
         // Draw the circle
@@ -146,6 +195,7 @@ async fn main() {
             // Responding to player input
             if is_key_pressed(KeyCode::Space) {
                 squares.clear();
+                bullets.clear();
                 circle.x = screen_center.x;
                 circle.y = screen_center.y;
                 gameover = false

@@ -9,6 +9,10 @@ fn window_conf() -> Conf {
     }
 }
 
+struct ScreenCenter {
+    x: f32,
+    y: f32,
+}
 
 struct Shape {
     size: f32,
@@ -18,6 +22,20 @@ struct Shape {
     color: Color
 }
 
+impl Shape {
+    fn collides_with(&self, other: &Self) -> bool {
+        self.rect().overlaps(&other.rect())
+    }
+
+    fn rect(&self) -> Rect {
+        Rect {
+            x: self.x - self.size / 2.0,
+            y: self.y - self.size / 2.0,
+            w: self.size,
+            h: self.size,
+        }
+    }
+}
 
 #[macroquad::main(window_conf)]
 async fn main() {
@@ -33,6 +51,8 @@ async fn main() {
         y: screen_height() / 2.0,
         color: Color::from_hex(0xb1de78),
     };
+
+    let mut gameover = false;
 
     // "Player entity"
     const SPEED: f32 = 200.0;
@@ -50,62 +70,97 @@ async fn main() {
     loop {
         clear_background(Color::from_hex(0x643c80));
 
-        // Get delta time
-        let delta_time = get_frame_time();
+        let screen_center = ScreenCenter {
+            x: screen_width() / 2.0,
+            y: screen_height() / 2.0,
+        };
 
-        // Input setup
-        if is_key_down(KeyCode::Right) {
-            circle.x += circle.speed * delta_time;
-        }
-        if is_key_down(KeyCode::Left) {
-            circle.x -= circle.speed * delta_time;
-        }
-        if is_key_down(KeyCode::Down) {
-            circle.y += circle.speed * delta_time;
-        }
-        if is_key_down(KeyCode::Up) {
-            circle.y -= circle.speed * delta_time;
-        }
+        // Game playing
+        if !gameover {
+            // Get delta time
+            let delta_time = get_frame_time();
 
-        circle.x = clamp(circle.x, 0.0 + circle.size, screen_width() - circle.size);
-        circle.y = clamp(circle.y, 0.0 + circle.size, screen_height() - circle.size);
+            // --- Circle Player ---
+            // Input setup
+            if is_key_down(KeyCode::Right) {
+                circle.x += circle.speed * delta_time;
+            }
+            if is_key_down(KeyCode::Left) {
+                circle.x -= circle.speed * delta_time;
+            }
+            if is_key_down(KeyCode::Down) {
+                circle.y += circle.speed * delta_time;
+            }
+            if is_key_down(KeyCode::Up) {
+                circle.y -= circle.speed * delta_time;
+            }
+
+            circle.x = clamp(circle.x, 0.0 + circle.size, screen_width() - circle.size);
+            circle.y = clamp(circle.y, 0.0 + circle.size, screen_height() - circle.size);
+
+            // --- Squares ---
+            // Create a new square
+            if rand::gen_range(0, 99) >= 95 {
+                let size = rand::gen_range(16.0, 64.0);
+
+                squares.push(Shape {
+                    size,
+                    speed: rand::gen_range(50.0, 150.0),
+                    x: rand::gen_range(size / 2.0, screen_width() - size / 2.0),
+                    y: -size,
+                    color: match enemy_clr.choose() {
+                        Some(choice) => *choice,
+                        None => Color::from_hex(0x000000),
+                    }
+                })
+            }
+
+            for square in &mut squares {
+                square.y += square.speed * delta_time;
+            }
+
+            if squares.iter().any(|square| circle.collides_with(square)) {
+                gameover = true;
+            }
+
+            // Keep squares still on-screen
+            squares.retain(|square| square.y < screen_height() + square.size);
+        }
 
         // Draw the circle
         draw_circle(circle.x, circle.y, circle.size, circle.color);
 
-        // Create a new square
-        if rand::gen_range(0, 99) >= 95 {
-            let size = rand::gen_range(16.0, 64.0);
-
-            squares.push(Shape {
-                size,
-                speed: rand::gen_range(50.0, 150.0),
-                x: rand::gen_range(size / 2.0, screen_width() - size / 2.0),
-                y: -size,
-                color: match enemy_clr.choose() {
-                    Some(choice) => *choice,
-                    None => Color::from_hex(0x000000),
-                }
-            })
-        }
-
-        // Moving squares
-        for square in &mut squares {
-            square.y += square.speed * delta_time;
-        }
-
-        // Keep squares still on-screen
-        squares.retain(|square| square.y < screen_height() + square.size);
-
+        // Draw the squares
         for square in &squares {
             draw_rectangle(
                 square.x - square.size / 2.0, 
                 square.y - square.size / 2.0, 
                 square.size, 
                 square.size,
-                // enemy_clr.choose(),
                 square.color,
             );
+        }
+
+        // --- GAME OVER ---
+        if gameover {
+            // Responding to player input
+            if is_key_pressed(KeyCode::Space) {
+                squares.clear();
+                circle.x = screen_center.x;
+                circle.y = screen_center.y;
+                gameover = false
+            }
+
+            let text = "GAME OVER!";
+            let text_dimensions = measure_text(text, None, 50, 1.0);
+            draw_text(
+                text,
+                screen_center.x - text_dimensions.width / 2.0,
+                screen_center.y + text_dimensions.offset_y / 2.0,
+                50.0,
+                RED,
+            );
+
         }
 
         next_frame().await

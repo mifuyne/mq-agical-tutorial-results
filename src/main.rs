@@ -1,3 +1,4 @@
+use std::fs;
 use macroquad::prelude::*;
 use rand::ChooseRandom;
 
@@ -71,6 +72,11 @@ async fn main() {
     ];
 
     let mut last_shot: f64 = 0.0;
+
+    let mut score: u32 = 0;
+    let mut high_score: u32 = fs::read_to_string("highscore.dat")
+        .map_or(Ok(0), |i| i.parse::<u32>())
+        .unwrap_or(0);
 
     loop {
         clear_background(Color::from_hex(0x643c80));
@@ -146,6 +152,9 @@ async fn main() {
             
             // Check for collision (Lose state)
             if squares.iter().any(|square| circle.collides_with(square)) {
+                if score == high_score {
+                    fs::write("highscore.dat", high_score.to_string()).ok();
+                }
                 gameover = true;
             }
 
@@ -155,6 +164,8 @@ async fn main() {
                     if bullet.collides_with(square) {
                         bullet.collided = true;
                         square.collided = true;
+                        score += square.size.round() as u32;
+                        high_score = high_score.max(score);
                     }
                 }
             }
@@ -170,6 +181,25 @@ async fn main() {
             bullets.retain(|bullet| !bullet.collided);
 
         }
+
+        // Draw scores
+        draw_text(
+            format!("Score: {}", score).as_str(),
+            10.0,
+            35.0,
+            25.0,
+            WHITE,
+        );
+
+        let highscore_text = format!("High score: {}", high_score);
+        let text_dimensions = measure_text(highscore_text.as_str(), None, 25, 1.0);
+        draw_text(
+            highscore_text.as_str(),
+            screen_width() - text_dimensions.width - 10.0,
+            35.0,
+            25.0,
+            YELLOW,
+        );
 
         // Draw bullets
         for bullet in &bullets {
@@ -198,6 +228,7 @@ async fn main() {
                 bullets.clear();
                 circle.x = screen_center.x;
                 circle.y = screen_center.y;
+                score = 0;
                 gameover = false
             }
 
@@ -210,6 +241,18 @@ async fn main() {
                 50.0,
                 RED,
             );
+
+            if score == high_score {
+                let hiscore_congrats_txt = format!("Congrats on beating the high score with {}!", score);
+                let hiscore_text_dim = measure_text(&hiscore_congrats_txt, None, 24, 1.0);
+                draw_text(
+                    &hiscore_congrats_txt,
+                    screen_center.x - hiscore_text_dim.width / 2.0,
+                    screen_center.y + (text_dimensions.offset_y / 2.0) + 25.0 + (hiscore_text_dim.offset_y / 2.0),
+                    24.0,
+                    WHITE,
+                );
+            }
 
         }
 

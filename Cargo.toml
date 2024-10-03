@@ -13,3 +13,6 @@ assets = "assets/"
 
 [package.metadata.android.activity_attributes]
 "android:exported" =  "true"
+
+[profile.dev.package.'*']
+opt-level = 3

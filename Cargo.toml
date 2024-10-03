@@ -5,3 +5,9 @@ edition = "2021"
 
 [dependencies]
 macroquad = "0.4"
+
+[package.metadata.android]
+build_targets = ["aarch64-linux-android"]
+
+[package.metadata.android.activity_attributes]
+"android:exported" =  "true"

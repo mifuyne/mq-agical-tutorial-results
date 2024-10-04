@@ -15,42 +15,26 @@ void main() {
 }
 ";
 
+mod assets;
+mod shape;
+
 use std::fs;
-use macroquad::prelude::*;
-use macroquad::ui::{hash, root_ui, Skin};
+use assets::Resources;
+use shape::Shape;
+use macroquad::{
+    prelude::*,
+    ui::{hash, root_ui},
+    experimental::animation::{AnimatedSprite, Animation},
+    audio::{play_sound, play_sound_once, set_sound_volume, stop_sound, PlaySoundParams},
+    experimental::collections::storage,
+};
 use macroquad_particles::{self as particles, AtlasConfig, Emitter, EmitterConfig};
-use macroquad::experimental::animation::{AnimatedSprite, Animation};
-use macroquad::audio::{load_sound, play_sound, play_sound_once, set_sound_volume, stop_sound, PlaySoundParams};
 use rand::ChooseRandom;
 
 #[derive(Debug)]
 struct ScreenCenter {
     x: f32,
     y: f32,
-}
-
-struct Shape {
-    size: f32,
-    speed: f32,
-    x: f32,
-    y: f32,
-    color: Color,
-    collided: bool,
-}
-
-impl Shape {
-    fn collides_with(&self, other: &Self) -> bool {
-        self.rect().overlaps(&other.rect())
-    }
-
-    fn rect(&self) -> Rect {
-        Rect {
-            x: self.x - self.size / 2.0,
-            y: self.y - self.size / 2.0,
-            w: self.size,
-            h: self.size,
-        }
-    }
 }
 
 enum GameState {
@@ -87,9 +71,11 @@ fn window_conf() -> Conf {
 }
 
 #[macroquad::main(window_conf)]
-async fn main() {
+async fn main() -> Result<(), macroquad::Error> {
     // Setting the asset folder
     set_pc_assets_folder("assets");
+    Resources::load().await?;
+    let resources = storage::get::<Resources>();
 
     // seeding the RNG
     rand::srand(miniquad::date::now() as u64);
@@ -145,42 +131,7 @@ async fn main() {
             ],
             ..Default::default()
         },
-    ).unwrap();
-
-    // Loading Textures
-    let ship_texture: Texture2D = load_texture("ship.png")
-        .await
-        .expect("Could not load file!");
-    ship_texture.set_filter(FilterMode::Nearest);
-    let bullet_texture: Texture2D = load_texture("laser-bolts.png")
-        .await
-        .expect("Could not load file!");
-    bullet_texture.set_filter(FilterMode::Nearest);
-
-    // Explosion texture
-    let explosion_texture: Texture2D = load_texture("explosion.png")
-        .await
-        .expect("Could not load file!");
-    explosion_texture.set_filter(FilterMode::Nearest);
-
-    // Enemy Ships
-    let enemy_small_texture: Texture2D = load_texture("enemy-small.png")
-        .await
-        .expect("Could not load file!");
-    enemy_small_texture.set_filter(FilterMode::Nearest);
-
-    let enemy_med_texture: Texture2D = load_texture("enemy-medium.png")
-        .await
-        .expect("Could not load file!");
-    enemy_med_texture.set_filter(FilterMode::Nearest);
-
-    let enemy_big_texture: Texture2D = load_texture("enemy-big.png")
-        .await
-        .expect("Could not load file!");
-    enemy_big_texture.set_filter(FilterMode::Nearest);
-
-    // build texture atlas
-    build_textures_atlas();
+    )?;
 
     // Setup bullet sprite
     let mut bullet_sprite = AnimatedSprite::new(
@@ -284,63 +235,16 @@ async fn main() {
         true,
     );
 
-    // Audio Setup
-    let theme_music = load_sound("8bit-spaceshooter.ogg").await.unwrap();
-    let sound_explosion = load_sound("explosion.wav").await.unwrap();
-    set_sound_volume(&sound_explosion, 0.25);
-    let sound_laser = load_sound("laser.wav").await.unwrap();
-    set_sound_volume(&sound_laser, 0.5);
-
-    // load ui resources
-    let window_bg = load_image("window_background.png").await.unwrap();
-    let btn_bg = load_image("button_background.png").await.unwrap();
-    let btn_clicked_bg = load_image("button_clicked_background.png").await.unwrap();
-    let font = load_file("atari_games.ttf").await.unwrap();
-
-    // -> UI skin setup
-    // --> Window
-    let window_style = root_ui()
-        .style_builder()
-        .background(window_bg)
-        .background_margin(RectOffset::new(32., 76., 44., 20.))
-        .margin(RectOffset::new(0., -40., 0., 0.))
-        .build();
-
-    // --> Button
-    let button_style = root_ui()
-        .style_builder()
-        .background(btn_bg)
-        .background_clicked(btn_clicked_bg)
-        .background_margin(RectOffset::new(16.0, 16.0, 16.0, 16.0))
-        .margin(RectOffset::new(16.0, 0.0, -8.0, -8.0))
-        .font(&font)
-        .unwrap()
-        .text_color(WHITE)
-        .font_size(64)
-        .build();
-
-    // --> Text
-    let label_style = root_ui()
-        .style_builder()
-        .font(&font)
-        .unwrap()
-        .text_color(WHITE)
-        .font_size(28)
-        .build();
-
-    // -> UI Skin var
-    let ui_skin = Skin {
-        window_style,
-        button_style,
-        label_style,
-        ..root_ui().default_skin()
-    };
-    root_ui().push_skin(&ui_skin);
+    root_ui().push_skin(&resources.ui_skin);
     let window_size = vec2(370., 320.);
+
+    // Set individual sound volume
+    set_sound_volume(&resources.sound_explosion, 0.25);
+    set_sound_volume(&resources.sound_laser, 0.5);
 
     // Play music
     play_sound(
-        &theme_music,
+        &resources.theme_music,
         PlaySoundParams {
             looped: true,
             volume: 0.5,
@@ -391,7 +295,7 @@ async fn main() {
                             circle.y = screen_center.y;
                             score = 0;
                             game_state = GameState::Playing;
-                            set_sound_volume(&theme_music, 1.);
+                            set_sound_volume(&resources.theme_music, 1.);
                         }
 
                         if ui.button(vec2(65., 125.), "Quit") {
@@ -471,7 +375,7 @@ async fn main() {
                         color: WHITE,
                         collided: false,
                     });
-                    play_sound_once(&sound_laser);
+                    play_sound_once(&resources.sound_laser);
                     last_shot = get_time();
                 }
 
@@ -528,12 +432,12 @@ async fn main() {
                             explosions.push((
                                 Emitter::new(EmitterConfig {
                                     amount: square.size.round() as u32 * 4,
-                                    texture: Some(explosion_texture.clone()),
+                                    texture: Some(resources.explosion_texture.clone()),
                                     ..particle_explosion()
                                 }),
                                 vec2(square.x, square.y),
                             ));
-                            play_sound_once(&sound_explosion);
+                            play_sound_once(&resources.sound_explosion);
                         }
                     }
                 }
@@ -554,7 +458,7 @@ async fn main() {
                 for bullet in &bullets {
                     // draw_circle(bullet.x, bullet.y, bullet.size / 2.0, RED);
                     draw_texture_ex(
-                        &bullet_texture, 
+                        &resources.bullet_texture, 
                         bullet.x - bullet.size / 2.0, 
                         bullet.y - bullet.size / 2.0, 
                         bullet.color, 
@@ -570,7 +474,7 @@ async fn main() {
                 // draw_circle(circle.x, circle.y, circle.size, circle.color);
                 let ship_frame = ship_sprite.frame();
                 draw_texture_ex(
-                    &ship_texture, 
+                    &resources.ship_texture, 
                     circle.x - ship_frame.dest_size.x, 
                     circle.y - ship_frame.dest_size.y, 
                     WHITE,
@@ -589,15 +493,15 @@ async fn main() {
                     match square.size {
                         size if size > 48.0 => {
                             enemy_frame = enemy_lg_sprite.frame();
-                            enemy_texture = &enemy_big_texture;
+                            enemy_texture = &resources.enemy_big_texture;
                         }
                         size if size > 24.0 => {
                             enemy_frame = enemy_md_sprite.frame();
-                            enemy_texture = &enemy_med_texture;
+                            enemy_texture = &resources.enemy_med_texture;
                         }
                         _ => {
                             enemy_frame = enemy_sm_sprite.frame();
-                            enemy_texture = &enemy_small_texture;
+                            enemy_texture = &resources.enemy_small_texture;
                         }
                     }
 
@@ -640,11 +544,11 @@ async fn main() {
                 );
             }
             GameState::Paused => {
-                stop_sound(&theme_music);
+                stop_sound(&resources.theme_music);
                 if is_key_pressed(KeyCode::Space) {
                     // Play music
                     play_sound(
-                        &theme_music,
+                        &resources.theme_music,
                         PlaySoundParams {
                             looped: true,
                             volume: 0.75,

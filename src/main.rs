@@ -161,6 +161,22 @@ async fn main() {
         .expect("Could not load file!");
     explosion_texture.set_filter(FilterMode::Nearest);
 
+    // Enemy Ships
+    let enemy_small_texture: Texture2D = load_texture("enemy-small.png")
+        .await
+        .expect("Could not load file!");
+    enemy_small_texture.set_filter(FilterMode::Nearest);
+
+    let enemy_med_texture: Texture2D = load_texture("enemy-medium.png")
+        .await
+        .expect("Could not load file!");
+    enemy_med_texture.set_filter(FilterMode::Nearest);
+
+    let enemy_big_texture: Texture2D = load_texture("enemy-big.png")
+        .await
+        .expect("Could not load file!");
+    enemy_big_texture.set_filter(FilterMode::Nearest);
+
     // build texture atlas
     build_textures_atlas();
 
@@ -218,6 +234,47 @@ async fn main() {
             Animation {
                 name: "right".to_string(),
                 row: 4,
+                frames: 2,
+                fps: 12,
+            },
+        ],
+        true,
+    );
+
+    // Setup enemy sprites
+    let mut enemy_sm_sprite = AnimatedSprite::new(
+        17,
+        16,
+        &[
+            Animation {
+                name: "enemy_small".to_string(),
+                row: 0,
+                frames: 2,
+                fps: 12,
+            },
+        ],
+        true,
+    );
+    let mut enemy_md_sprite = AnimatedSprite::new(
+        32,
+        16,
+        &[
+            Animation {
+                name: "enemy_med".to_string(),
+                row: 0,
+                frames: 2,
+                fps: 12,
+            },
+        ],
+        true,
+    );
+    let mut enemy_lg_sprite = AnimatedSprite::new(
+        32,
+        32,
+        &[
+            Animation {
+                name: "enemy_big".to_string(),
+                row: 0,
                 frames: 2,
                 fps: 12,
             },
@@ -380,6 +437,9 @@ async fn main() {
 
                 ship_sprite.update();
                 bullet_sprite.update();
+                enemy_sm_sprite.update();
+                enemy_md_sprite.update();
+                enemy_lg_sprite.update();
                 
                 // Check for collision (Lose state)
                 if squares.iter().any(|square| circle.collides_with(square)) {
@@ -454,12 +514,35 @@ async fn main() {
 
                 // Draw the squares
                 for square in &squares {
-                    draw_rectangle(
+                    // Pick a texture based on enemy size
+                    let enemy_frame;
+                    let enemy_texture;
+                    match square.size {
+                        size if size > 48.0 => {
+                            enemy_frame = enemy_lg_sprite.frame();
+                            enemy_texture = &enemy_big_texture;
+                        }
+                        size if size > 24.0 => {
+                            enemy_frame = enemy_md_sprite.frame();
+                            enemy_texture = &enemy_med_texture;
+                        }
+                        _ => {
+                            enemy_frame = enemy_sm_sprite.frame();
+                            enemy_texture = &enemy_small_texture;
+                        }
+                    }
+
+                    // Draw the enemy
+                    draw_texture_ex(
+                        enemy_texture, 
                         square.x - square.size / 2.0, 
                         square.y - square.size / 2.0, 
-                        square.size, 
-                        square.size,
-                        square.color,
+                        WHITE, 
+                        DrawTextureParams {
+                            dest_size: Some(vec2(square.size, square.size)),
+                            source: Some(enemy_frame.source_rect),
+                            ..Default::default()
+                        },
                     );
                 }
 

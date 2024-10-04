@@ -1,10 +1,10 @@
 [package]
 name = "agical-tutorial"
-version = "0.1.11"
+version = "0.1.12"
 edition = "2021"
 
 [dependencies]
-macroquad = "0.4"
+macroquad = { version = "0.4", features = ["audio"] }
 macroquad-particles = "0.2.2"
 
 [package.metadata.android]

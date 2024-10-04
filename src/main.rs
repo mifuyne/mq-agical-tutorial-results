@@ -19,6 +19,7 @@ use std::fs;
 use macroquad::prelude::*;
 use macroquad_particles::{self as particles, AtlasConfig, Emitter, EmitterConfig};
 use macroquad::experimental::animation::{AnimatedSprite, Animation};
+use macroquad::audio::{load_sound, play_sound, play_sound_once, set_sound_volume, stop_sound, PlaySoundParams};
 use rand::ChooseRandom;
 
 struct ScreenCenter {
@@ -281,7 +282,23 @@ async fn main() {
         ],
         true,
     );
-    
+
+    // Audio Setup
+    let theme_music = load_sound("8bit-spaceshooter.ogg").await.unwrap();
+    let sound_explosion = load_sound("explosion.wav").await.unwrap();
+    set_sound_volume(&sound_explosion, 0.25);
+    let sound_laser = load_sound("laser.wav").await.unwrap();
+    set_sound_volume(&sound_laser, 0.5);
+
+    // Play music
+    play_sound(
+        &theme_music,
+        PlaySoundParams {
+            looped: true,
+            volume: 0.5,
+        }
+    );
+
     loop {
         clear_background(BLACK);
 
@@ -321,6 +338,7 @@ async fn main() {
                     circle.y = screen_center.y;
                     score = 0;
                     game_state = GameState::Playing;
+                    set_sound_volume(&theme_music, 1.);
                 }
 
                 let text = "Press [Space]";
@@ -404,6 +422,7 @@ async fn main() {
                         color: WHITE,
                         collided: false,
                     });
+                    play_sound_once(&sound_laser);
                     last_shot = get_time();
                 }
 
@@ -465,6 +484,7 @@ async fn main() {
                                 }),
                                 vec2(square.x, square.y),
                             ));
+                            play_sound_once(&sound_explosion);
                         }
                     }
                 }
@@ -571,7 +591,16 @@ async fn main() {
                 );
             }
             GameState::Paused => {
+                stop_sound(&theme_music);
                 if is_key_pressed(KeyCode::Space) {
+                    // Play music
+                    play_sound(
+                        &theme_music,
+                        PlaySoundParams {
+                            looped: true,
+                            volume: 0.75,
+                        }
+                    );
                     game_state = GameState::Playing;
                 }
                 let text = "Paused";

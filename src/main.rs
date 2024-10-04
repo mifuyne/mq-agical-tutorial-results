@@ -17,10 +17,13 @@ void main() {
 
 use std::fs;
 use macroquad::prelude::*;
+use macroquad::ui::{hash, root_ui, Skin};
 use macroquad_particles::{self as particles, AtlasConfig, Emitter, EmitterConfig};
 use macroquad::experimental::animation::{AnimatedSprite, Animation};
+use macroquad::audio::{load_sound, play_sound, play_sound_once, set_sound_volume, stop_sound, PlaySoundParams};
 use rand::ChooseRandom;
 
+#[derive(Debug)]
 struct ScreenCenter {
     x: f32,
     y: f32,
@@ -127,7 +130,6 @@ async fn main() {
     let mut high_score: u32 = fs::read_to_string("highscore.dat")
         .map_or(Ok(0), |i| i.parse::<u32>())
         .unwrap_or(0);
-
 
     // Starfield shader setup
     let mut direction_modifier: f32 = 0.0;
@@ -281,7 +283,70 @@ async fn main() {
         ],
         true,
     );
-    
+
+    // Audio Setup
+    let theme_music = load_sound("8bit-spaceshooter.ogg").await.unwrap();
+    let sound_explosion = load_sound("explosion.wav").await.unwrap();
+    set_sound_volume(&sound_explosion, 0.25);
+    let sound_laser = load_sound("laser.wav").await.unwrap();
+    set_sound_volume(&sound_laser, 0.5);
+
+    // load ui resources
+    let window_bg = load_image("window_background.png").await.unwrap();
+    let btn_bg = load_image("button_background.png").await.unwrap();
+    let btn_clicked_bg = load_image("button_clicked_background.png").await.unwrap();
+    let font = load_file("atari_games.ttf").await.unwrap();
+
+    // -> UI skin setup
+    // --> Window
+    let window_style = root_ui()
+        .style_builder()
+        .background(window_bg)
+        .background_margin(RectOffset::new(32., 76., 44., 20.))
+        .margin(RectOffset::new(0., -40., 0., 0.))
+        .build();
+
+    // --> Button
+    let button_style = root_ui()
+        .style_builder()
+        .background(btn_bg)
+        .background_clicked(btn_clicked_bg)
+        .background_margin(RectOffset::new(16.0, 16.0, 16.0, 16.0))
+        .margin(RectOffset::new(16.0, 0.0, -8.0, -8.0))
+        .font(&font)
+        .unwrap()
+        .text_color(WHITE)
+        .font_size(64)
+        .build();
+
+    // --> Text
+    let label_style = root_ui()
+        .style_builder()
+        .font(&font)
+        .unwrap()
+        .text_color(WHITE)
+        .font_size(28)
+        .build();
+
+    // -> UI Skin var
+    let ui_skin = Skin {
+        window_style,
+        button_style,
+        label_style,
+        ..root_ui().default_skin()
+    };
+    root_ui().push_skin(&ui_skin);
+    let window_size = vec2(370., 320.);
+
+    // Play music
+    play_sound(
+        &theme_music,
+        PlaySoundParams {
+            looped: true,
+            volume: 0.5,
+        }
+    );
+
     loop {
         clear_background(BLACK);
 
@@ -305,32 +370,34 @@ async fn main() {
             y: screen_height() / 2.0,
         };
 
+        // println!("Screen center: {:?}", screen_center);
+        
         match game_state {
             GameState::MainMenu => {
-                // Quit Game
-                if is_key_pressed(KeyCode::Escape) {
-                    std::process::exit(0);
-                }
-                
-                // Start Game
-                if is_key_pressed(KeyCode::Space) {
-                    squares.clear();
-                    bullets.clear();
-                    explosions.clear();
-                    circle.x = screen_center.x;
-                    circle.y = screen_center.y;
-                    score = 0;
-                    game_state = GameState::Playing;
-                }
+                root_ui().window(
+                    hash!(),
+                    vec2(
+                        screen_center.x - window_size.x / 2.0,
+                        screen_center.y - window_size.y / 2.0,
+                    ),
+                    window_size,
+                    |ui| {
+                        ui.label(vec2(80., -34.), "Main Menu");
+                        if ui.button(vec2(65., 25.), "Play") {
+                            squares.clear();
+                            bullets.clear();
+                            explosions.clear();
+                            circle.x = screen_center.x;
+                            circle.y = screen_center.y;
+                            score = 0;
+                            game_state = GameState::Playing;
+                            set_sound_volume(&theme_music, 1.);
+                        }
 
-                let text = "Press [Space]";
-                let text_dimensions = measure_text(text, None, 50, 1.0);
-                draw_text(
-                    text,
-                    screen_width() / 2.0 - text_dimensions.width / 2.0,
-                    screen_height() / 2.0,
-                    50.0,
-                    WHITE,
+                        if ui.button(vec2(65., 125.), "Quit") {
+                            std::process::exit(0);
+                        }
+                    },
                 );
             }
             GameState::Playing => {
@@ -404,6 +471,7 @@ async fn main() {
                         color: WHITE,
                         collided: false,
                     });
+                    play_sound_once(&sound_laser);
                     last_shot = get_time();
                 }
 
@@ -465,6 +533,7 @@ async fn main() {
                                 }),
                                 vec2(square.x, square.y),
                             ));
+                            play_sound_once(&sound_explosion);
                         }
                     }
                 }
@@ -571,7 +640,16 @@ async fn main() {
                 );
             }
             GameState::Paused => {
+                stop_sound(&theme_music);
                 if is_key_pressed(KeyCode::Space) {
+                    // Play music
+                    play_sound(
+                        &theme_music,
+                        PlaySoundParams {
+                            looped: true,
+                            volume: 0.75,
+                        }
+                    );
                     game_state = GameState::Playing;
                 }
                 let text = "Paused";

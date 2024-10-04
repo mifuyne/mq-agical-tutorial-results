@@ -17,7 +17,7 @@ void main() {
 
 use std::fs;
 use macroquad::prelude::*;
-use macroquad_particles::{self as particles, ColorCurve, Emitter, EmitterConfig};
+use macroquad_particles::{self as particles, AtlasConfig, Emitter, EmitterConfig};
 use macroquad::experimental::animation::{AnimatedSprite, Animation};
 use rand::ChooseRandom;
 
@@ -66,15 +66,11 @@ fn particle_explosion() -> particles::EmitterConfig {
         lifetime_randomness: 0.3,
         explosiveness: 0.65,
         initial_direction_spread: 2.0 * std::f32::consts::PI,
-        initial_velocity: 300.0,
+        initial_velocity: 400.0,
         initial_velocity_randomness: 0.8,
-        size: 3.0,
+        size: 16.0,
         size_randomness: 0.3,
-        colors_curve: ColorCurve {
-            start: RED,
-            mid: ORANGE,
-            end: RED,
-        },
+        atlas: Some(AtlasConfig::new(5, 1, 0..)),
         ..Default::default()
     }
 }
@@ -158,6 +154,12 @@ async fn main() {
         .await
         .expect("Could not load file!");
     bullet_texture.set_filter(FilterMode::Nearest);
+
+    // Explosion texture
+    let explosion_texture: Texture2D = load_texture("explosion.png")
+        .await
+        .expect("Could not load file!");
+    explosion_texture.set_filter(FilterMode::Nearest);
 
     // build texture atlas
     build_textures_atlas();
@@ -297,7 +299,6 @@ async fn main() {
                     }
                     if pc_last_dir_change > 0.0 && get_time() as f32 - pc_last_dir_change > 0.2 {
                         ship_sprite.set_animation(4);
-                        println!("Hard Right! {}", get_time() as f32 - pc_last_dir_change);
                     }
                     else {
                         ship_sprite.set_animation(3);
@@ -315,7 +316,6 @@ async fn main() {
 
                     if pc_last_dir_change > 0.0 && get_time() as f32 - pc_last_dir_change > 0.2 {
                         ship_sprite.set_animation(2);
-                        println!("Hard Left! {}", get_time() as f32 - pc_last_dir_change);
                     }
                     else {
                         ship_sprite.set_animation(1);
@@ -399,7 +399,8 @@ async fn main() {
                             high_score = high_score.max(score);
                             explosions.push((
                                 Emitter::new(EmitterConfig {
-                                    amount: square.size.round() as u32 * 2,
+                                    amount: square.size.round() as u32 * 4,
+                                    texture: Some(explosion_texture.clone()),
                                     ..particle_explosion()
                                 }),
                                 vec2(square.x, square.y),
